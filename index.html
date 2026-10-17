@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نظام البصمة – الحرية هايبر ماركت</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--tx:#14213d;--mut:#667085;--pri:#0b5ed7;--ok:#16a34a;--bad:#dc2626;--bd:#e3e8ef;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f172a;--card:#1e293b;--tx:#f1f5f9;--mut:#94a3b8;--pri:#60a5fa;--ok:#4ade80;--bad:#f87171;--bd:#334155}}
+:root[data-theme="dark"]{--bg:#0f172a;--card:#1e293b;--tx:#f1f5f9;--mut:#94a3b8;--pri:#60a5fa;--ok:#4ade80;--bad:#f87171;--bd:#334155}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,Arial,sans-serif;min-height:100vh}
+header{background:var(--pri);color:#fff;padding:14px 16px;text-align:center}
+header h1{margin:0;font-size:18px}header p{margin:4px 0 0;font-size:13px;opacity:.9}
+main{max-width:900px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px;margin-bottom:14px}
+h2{margin:0 0 12px;font-size:17px}
+input,button{font:inherit;border-radius:10px;border:1px solid var(--bd);padding:11px 12px;background:var(--bg);color:var(--tx);max-width:100%}
+button{background:var(--pri);color:#fff;border:0;cursor:pointer;font-weight:600}
+button.sec{background:transparent;color:var(--pri);border:1px solid var(--pri)}
+button.red{background:var(--bad)}button:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.clock{font-size:34px;font-weight:700;text-align:center;direction:ltr}
+.date{text-align:center;color:var(--mut);margin-bottom:12px}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.big button{padding:18px;font-size:17px}.in{background:var(--ok)}.out{background:var(--bad)}
+.msg{margin-top:10px;font-size:14px;min-height:20px;color:var(--mut)}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}
+th{color:var(--mut);font-weight:600}
+.tag{padding:2px 8px;border-radius:20px;font-size:12px;background:var(--bd)}
+.hide{display:none}.center{text-align:center}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="shim.js"></script>
+</head>
+<body>
+<header><h1>نظام البصمة وتسجيل الحضور</h1><p>الحرية هايبر ماركت الإنشائية – بغداد</p></header>
+<main>
+<div id="login" class="card center">
+  <h2>تسجيل الدخول</h2>
+  <div class="row" style="justify-content:center">
+    <input id="code" type="password" inputmode="numeric" placeholder="رمز الموظف" autocomplete="off">
+    <button id="loginBtn">دخول</button>
+  </div>
+  <div class="msg" id="loginMsg"></div>
+  <div style="margin-top:14px"><button class="sec" id="adminToggle">دخول المسؤول</button></div>
+  <div id="adminBox" class="hide" style="margin-top:12px">
+    <div class="row" style="justify-content:center"><input id="aName" placeholder="اسم المسؤول" autocomplete="off"><input id="aCode" type="password" placeholder="رمز المسؤول" autocomplete="off"><button id="adminBtn">دخول</button></div>
+    <div class="msg" id="aMsg"></div>
+  </div>
+</div>
+
+<div id="emp" class="hide">
+  <div id="alertBox" class="card hide" style="border:2px solid var(--bad)"><h2>📢 طلب بصمة حضور من المسؤول</h2><div class="date" id="alertText"></div><button id="confBtn" class="in" style="width:100%;padding:16px;font-size:17px">تأكيد الحضور الآن</button><div class="msg" id="alertMsg"></div></div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 id="hello"></h2><button class="sec" onclick="logout()">خروج</button></div>
+    <div class="clock" id="clk"></div><div class="date" id="dt"></div>
+    <div class="big"><button class="in" id="bIn">بصمة دخول</button><button class="out" id="bOut">بصمة خروج</button></div>
+    <div class="msg" id="empMsg"></div>
+  </div>
+  <div class="card"><h2>سجلي اليوم</h2><div id="mine" class="date" style="margin:0"></div></div>
+</div>
+
+<div id="adm" class="hide">
+  <div class="card row" style="justify-content:space-between"><h2 style="margin:0">لوحة المسؤول</h2><button class="sec" onclick="logout()">خروج</button></div>
+  <div class="card">
+    <h2>إضافة موظف</h2>
+    <div class="row"><input id="nName" placeholder="اسم الموظف"><input id="nCode" placeholder="رمز الدخول (مثال 1234)" inputmode="numeric"><input id="nSal" type="number" placeholder="الراتب (اختياري)" style="width:140px"><button id="addBtn">إضافة</button></div>
+    <div class="msg" id="addMsg"></div>
+  </div>
+  <div class="card">
+    <h2>منطقة العمل (الزون)</h2>
+    <div class="date" style="text-align:right" id="zoneInfo"></div>
+    <div class="row"><button class="sec" id="zoneBtn">تعيين موقعي الحالي كموقع الشركة</button><input id="radius" type="number" value="150" style="width:110px" title="نصف القطر بالمتر"><span class="date" style="margin:0">متر</span></div>
+    <div class="msg" id="zoneMsg"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">سجل الحضور</h2><input type="date" id="fdate"></div>
+    <div class="tw"><table><thead><tr><th>الموظف</th><th>الدخول</th><th>الخروج</th><th>المدة</th><th>الموقع</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+  </div>
+  <div class="card">
+    <h2>طلب بصمة حضور من الموظفين</h2>
+    <div class="row"><input id="rMsg" value="يرجى بصمة تأكيد الحضور الآن" style="flex:1;min-width:200px"><input id="rMin" type="number" value="15" style="width:90px"><span class="date" style="margin:0">دقيقة مهلة</span><button id="reqBtn">إرسال للجميع</button></div>
+    <div class="msg" id="reqMsg"></div>
+    <div class="tw"><table><thead><tr><th>الموظف</th><th>حالة آخر طلب</th><th>الوقت</th></tr></thead><tbody id="reqRows"></tbody></table></div>
+  </div>
+  <div class="card"><h2>بيانات دخول المسؤول</h2><div class="row"><input id="cName" placeholder="الاسم"><input id="cCode" type="password" placeholder="الرمز الجديد (4 خانات فأكثر)"><button id="cSave" class="sec">تحديث</button></div><div class="msg" id="cMsg"></div></div>
+  <div class="card hide" id="editCard" style="border:2px solid var(--pri)">
+    <h2 id="edTitle"></h2>
+    <div class="row"><label>الدخول <input type="time" id="edIn"></label><label>الخروج <input type="time" id="edOut"></label><button id="edSave">حفظ التعديل</button><button class="sec" id="edCancel">إلغاء</button></div>
+    <div class="msg" id="edMsg">اترك الخروج فارغاً إذا لم يخرج الموظف بعد.</div>
+  </div>
+  <div class="card">
+    <h2>تقرير Word</h2>
+    <div class="row"><select id="rpType" style="font:inherit;padding:11px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)"><option value="day">تقرير يومي</option><option value="week">تقرير أسبوعي (السبت – الجمعة)</option></select><input type="date" id="rpDate"><button id="rpBtn">تنزيل التقرير</button></div>
+    <div class="msg" id="rpMsg"></div>
+  </div>
+  <div class="card">
+    <h2>الرواتب</h2>
+    <div class="row"><label>الراتب الشهري الافتراضي <input id="pSal" type="number" style="width:130px"></label><label>ساعات الدوام اليومية <input id="pHrs" type="number" step="0.5" style="width:80px"></label></div>
+    <div class="date" style="text-align:right;margin:10px 0 4px">أيام العطلة (الجمعة دوام، لذلك اتركها بدون تحديد):</div>
+    <div class="row" id="pOff"></div>
+    <div class="row" style="margin-top:10px"><button id="pSave" class="sec">حفظ الإعدادات</button><input type="month" id="pMonth"><button id="pCalc">حساب الرواتب</button><button id="pDoc" class="sec">تنزيل Word</button></div>
+    <div class="msg" id="pMsg"></div>
+    <div class="tw"><table><thead><tr><th>الموظف</th><th>أيام الحضور</th><th>ساعات العمل</th><th>المطلوب</th><th>الراتب الأساسي</th><th>الاستقطاع</th><th>الصافي</th></tr></thead><tbody id="pRows"></tbody></table></div>
+  </div>
+  <div class="card"><h2>الموظفون</h2><div class="date" style="text-align:right">الخانة بجانب الرمز هي راتب الموظف (فارغة = الراتب الافتراضي)</div><div class="tw"><table><tbody id="emps"></tbody></table></div></div>
+</div>
+</main>
+
+<script>
+const TZ="Asia/Baghdad";
+const $=id=>document.getElementById(id);
+let db=null,user=null,me=null,isAdmin=false,employees={},zone=null,records={},unsubs=[];
+const dayKey=(d=new Date())=>new Intl.DateTimeFormat("en-CA",{timeZone:TZ}).format(d);
+const tm=iso=>iso?new Date(iso).toLocaleTimeString("ar-IQ",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}):"—";
+const dist=(a,b,c,d)=>{const R=6371000,r=x=>x*Math.PI/180,dl=r(c-a),dn=r(d-b);const h=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+const pos=()=>new Promise((ok,no)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>ok(p.coords),no,{enableHighAccuracy:true,timeout:15000}):no(new Error("no geo")));
+function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
+
+setInterval(()=>{const n=new Date();$("clk").textContent=n.toLocaleTimeString("en-GB",{timeZone:TZ});$("dt").textContent=n.toLocaleDateString("ar-IQ",{timeZone:TZ,weekday:"long",year:"numeric",month:"long",day:"numeric"})},1000);
+
+(async()=>{
+  try{ if(!window.claude){$("loginMsg").textContent="يجب فتح الصفحة من claude.ai";return}
+    db=await claude.use("db"); user=await claude.use("user");
+    if(!db){$("loginMsg").textContent="سجّل الدخول إلى حسابك في Claude لتفعيل قاعدة البيانات";return}
+    db.doc("settings/adminAuth").onSnapshot(s=>{adminAuth=s.exists?s.data():null},()=>{});
+    db.doc("settings/zone").onSnapshot(s=>{zone=s.exists?s.data():null;renderZone()},()=>{});
+    db.collection("employees").onSnapshot(s=>{employees={};s.docs.forEach(d=>employees[d.id]=d.data());renderEmps()},()=>{});
+    watchReq();
+  }catch(e){$("loginMsg").textContent="تعذر الاتصال بقاعدة البيانات"}
+})();
+
+$("loginBtn").onclick=()=>{
+  const c=$("code").value.trim();
+  if(employees[c]){me={code:c,...employees[c]};showEmp()}else $("loginMsg").textContent="الرمز غير صحيح أو غير مسجّل";
+};
+let adminAuth=null;
+const sha=async s=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode("hurriya|"+s)))].map(b=>b.toString(16).padStart(2,"0")).join("");
+const adminHash=(n,c)=>sha(n.trim().toLowerCase()+"|"+c.trim());
+$("adminToggle").onclick=()=>$("adminBox").classList.toggle("hide");
+function enterAdmin(){isAdmin=true;$("login").classList.add("hide");$("adm").classList.remove("hide");$("cName").value=adminAuth?adminAuth.name:"";$("fdate").value=dayKey();watchRecords();renderReq()}
+$("adminBtn").onclick=async()=>{
+  const n=$("aName").value,c=$("aCode").value,m=$("aMsg");
+  if(!db){m.textContent="قاعدة البيانات غير متصلة";return}
+  if(!n.trim()||c.trim().length<4){m.textContent="أدخل الاسم ورمزاً من 4 خانات على الأقل";return}
+  const h=await adminHash(n,c);
+  if(!adminAuth){
+    if(!(user&&user.isOwner())){m.textContent="لم يُنشأ حساب المسؤول بعد. يجب أن يفتح مالك الصفحة وينشئه أولاً";return}
+    try{await db.doc("settings/adminAuth").set({name:n.trim(),hash:h});adminAuth={name:n.trim(),hash:h}}catch(e){m.textContent="تعذر إنشاء حساب المسؤول";return}
+  }else if(adminAuth.hash!==h){m.textContent="الاسم أو الرمز غير صحيح";return}
+  m.textContent="";enterAdmin();
+};
+$("cSave").onclick=async()=>{
+  const n=$("cName").value.trim(),c=$("cCode").value.trim();
+  if(!n||c.length<4){$("cMsg").textContent="أدخل اسماً ورمزاً من 4 خانات على الأقل";return}
+  try{const h=await adminHash(n,c);await db.doc("settings/adminAuth").set({name:n,hash:h});$("cMsg").textContent="تم تحديث بيانات الدخول ✔";$("cCode").value=""}
+  catch(e){$("cMsg").textContent="فشل التحديث"}
+};
+function logout(){unsubs.forEach(u=>u());unsubs=[];me=null;isAdmin=false;$("code").value="";$("aCode").value="";["emp","adm"].forEach(i=>$(i).classList.add("hide"));$("login").classList.remove("hide")}
+
+function showEmp(){
+  $("login").classList.add("hide");$("emp").classList.remove("hide");$("hello").textContent="أهلاً "+me.name;
+  try{Notification.requestPermission()}catch(e){}
+  setTimeout(()=>renderReq(true),300);
+  const id=me.code+"_"+dayKey();
+  unsubs.push(db.doc("attendance/"+id).onSnapshot(s=>{
+    const r=s.exists?s.data():null;
+    $("mine").textContent=r?("دخول: "+tm(r.checkIn)+"   |   خروج: "+tm(r.checkOut)):"لا يوجد تسجيل اليوم";
+    $("bIn").disabled=!!r; $("bOut").disabled=!r||!!(r&&r.checkOut);
+  }));
+}
+async function checkZone(){
+  if(!zone||zone.lat==null) return {ok:true,note:"الزون غير محدد"};
+  try{const p=await pos();const d=Math.round(dist(p.latitude,p.longitude,zone.lat,zone.lng));
+    return {ok:d<=zone.radius,d,note:d<=zone.radius?"داخل الزون":"خارج الزون ("+d+" م)"}}
+  catch(e){return {ok:false,note:"تعذر تحديد الموقع"}}
+}
+async function punch(kind){
+  $("empMsg").textContent="جارٍ التحقق من الموقع...";
+  const z=await checkZone();
+  if(!z.ok){$("empMsg").textContent="لا يمكن التسجيل: "+z.note+". يجب أن تكون داخل الحرية هايبر ماركت.";return}
+  const ref=db.doc("attendance/"+me.code+"_"+dayKey()),now=new Date().toISOString();
+  try{
+    if(kind==="in") await ref.set({code:me.code,name:me.name,date:dayKey(),checkIn:now,inZone:z.note,checkOut:null});
+    else await ref.update({checkOut:now,outZone:z.note});
+    $("empMsg").textContent="تم تسجيل "+(kind==="in"?"الدخول":"الخروج")+" بنجاح ✔";
+  }catch(e){$("empMsg").textContent="فشل الحفظ، حاول مرة أخرى"}
+}
+$("bIn").onclick=()=>punch("in");$("bOut").onclick=()=>punch("out");
+
+function watchRecords(){
+  unsubs.forEach(u=>u());unsubs=[];
+  unsubs.push(db.collection("attendance").where("date","==",$("fdate").value).onSnapshot(s=>{records={};s.docs.forEach(d=>records[d.id]=d.data());renderRows()}));
+}
+$("fdate").onchange=watchRecords;
+function renderRows(){
+  const list=Object.values(employees).length?Object.entries(employees):[];
+  $("rows").innerHTML=list.map(([c,e])=>{
+    const r=records[c+"_"+$("fdate").value];let dur="—";
+    if(r&&r.checkIn&&r.checkOut){const m=Math.round((new Date(r.checkOut)-new Date(r.checkIn))/60000);dur=Math.floor(m/60)+"س "+m%60+"د"}
+    return "<tr><td>"+esc(e.name)+"</td><td>"+tm(r&&r.checkIn)+"</td><td>"+tm(r&&r.checkOut)+"</td><td>"+dur+"</td><td><span class='tag'>"+esc(r?(r.inZone||""):"غائب")+"</span>"+(r&&r.edited?" <span class='tag'>معدّل</span>":"")+"</td><td><button class='sec' onclick=\"editRec('"+encodeURIComponent(c)+"')\">تعديل</button></td></tr>"
+  }).join("")||"<tr><td>لا يوجد موظفون بعد</td></tr>";
+}
+function renderEmps(){renderReq();
+  renderRows();
+  $("emps").innerHTML=Object.entries(employees).map(([c,e])=>"<tr><td>"+esc(e.name)+"</td><td>رمز: "+esc(c)+"</td><td><input type='number' value='"+(e.salary||"")+"' placeholder='"+payCfg.salary+"' style='width:120px' onchange=\"setSal('"+encodeURIComponent(c)+"',this.value)\"></td><td><button class='red' onclick=\"delEmp('"+encodeURIComponent(c)+"')\">حذف</button></td></tr>").join("");
+}
+$("addBtn").onclick=async()=>{
+  const n=$("nName").value.trim(),c=$("nCode").value.trim();
+  if(!n||!/^[A-Za-z0-9]{3,12}$/.test(c)){$("addMsg").textContent="أدخل الاسم ورمزاً من 3 إلى 12 حرفاً أو رقماً";return}
+  if(employees[c]){$("addMsg").textContent="هذا الرمز مستخدم";return}
+  try{await db.doc("employees/"+c).set({name:n,salary:+$("nSal").value||null,createdAt:new Date().toISOString()});$("addMsg").textContent="تمت إضافة "+n;$("nName").value=$("nCode").value=""}
+  catch(e){$("addMsg").textContent="فشلت الإضافة (صلاحية المسؤول مطلوبة)"}
+};
+async function delEmp(c){c=decodeURIComponent(c);if(confirm("حذف "+employees[c].name+"؟"))try{await db.doc("employees/"+c).delete()}catch(e){}}
+function renderZone(){$("zoneInfo").textContent=zone&&zone.lat!=null?"الزون محدد: نصف القطر "+zone.radius+" متر حول موقع الشركة":"لم يتم تحديد الزون بعد – افتح الصفحة من داخل الشركة واضغط الزر أدناه"}
+$("zoneBtn").onclick=async()=>{
+  try{const p=await pos();await db.doc("settings/zone").set({lat:p.latitude,lng:p.longitude,radius:+$("radius").value||150,name:"الحرية هايبر ماركت - بغداد"});$("zoneMsg").textContent="تم حفظ الزون ✔"}
+  catch(e){$("zoneMsg").textContent="تعذر تحديد الموقع، فعّل GPS وأعد المحاولة"}
+};
+let curReq=null,checks={},checksUnsub=null,lastReqId=null;
+function watchReq(){watchPay();
+  db.collection("requests").orderBy("createdAt","desc").limit(1).onSnapshot(s=>{
+    curReq=s.empty?null:{id:s.docs[0].id,...s.docs[0].data()};
+    if(checksUnsub){checksUnsub();checksUnsub=null}
+    checks={};
+    if(curReq)checksUnsub=db.collection("checks").where("reqId","==",curReq.id).onSnapshot(c=>{checks={};c.docs.forEach(d=>checks[d.data().code]=d.data());renderReq()},()=>{});
+    renderReq(true);
+  },()=>{});
+}
+function reqState(){
+  if(!curReq)return null;
+  const end=new Date(curReq.createdAt).getTime()+curReq.minutes*60000;
+  return {active:Date.now()<end,today:dayKey(new Date(curReq.createdAt))===dayKey(),end};
+}
+function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator();o.frequency.value=880;o.connect(a.destination);o.start();setTimeout(()=>o.stop(),600)}catch(e){}try{navigator.vibrate&&navigator.vibrate([300,150,300])}catch(e){}}
+function renderReq(isNew){
+  const st=reqState();
+  if(me){
+    const box=$("alertBox");
+    if(!st||!st.today){box.classList.add("hide")}
+    else{
+      const done=checks[me.code];
+      box.classList.remove("hide");
+      $("alertText").textContent=curReq.message+" — المهلة حتى "+tm(new Date(st.end).toISOString());
+      $("confBtn").disabled=!!done||!st.active;
+      $("alertMsg").textContent=done?"تم تأكيد حضورك الساعة "+tm(done.time)+" ✔":(st.active?"":"انتهت المهلة");
+      if(isNew&&st.active&&!done&&curReq.id!==lastReqId){lastReqId=curReq.id;beep();try{new Notification("طلب بصمة حضور",{body:curReq.message})}catch(e){}}
+    }
+  }
+  if(isAdmin){
+    $("reqRows").innerHTML=Object.entries(employees).map(([c,e])=>{
+      const k=checks[c];
+      const s=!curReq?"—":(k?"<span style='color:var(--ok)'>أكّد ✔</span>":(st.active?"بانتظار الرد":"<span style='color:var(--bad)'>لم يؤكد</span>"));
+      return "<tr><td>"+esc(e.name)+"</td><td>"+s+"</td><td>"+(k?tm(k.time):"—")+"</td></tr>";
+    }).join("")||"<tr><td>لا يوجد موظفون</td></tr>";
+    if(curReq)$("reqMsg").textContent="آخر طلب: "+tm(curReq.createdAt)+" — "+curReq.message;
+  }
+}
+setInterval(()=>renderReq(),15000);
+$("reqBtn").onclick=async()=>{
+  const m=$("rMsg").value.trim()||"يرجى بصمة تأكيد الحضور الآن",mins=Math.max(1,+$("rMin").value||15);
+  try{await db.collection("requests").add({message:m,minutes:mins,createdAt:new Date().toISOString()});$("reqMsg").textContent="تم إرسال الطلب لجميع الموظفين ✔"}
+  catch(e){$("reqMsg").textContent="فشل الإرسال"}
+};
+$("confBtn").onclick=async()=>{
+  $("alertMsg").textContent="جارٍ التحقق من الموقع...";
+  const z=await checkZone();
+  if(!z.ok){$("alertMsg").textContent="لا يمكن التأكيد: "+z.note;return}
+  try{await db.doc("checks/"+curReq.id+"_"+me.code).set({reqId:curReq.id,code:me.code,name:me.name,time:new Date().toISOString(),zone:z.note})}
+  catch(e){$("alertMsg").textContent="فشل الحفظ، حاول مرة أخرى"}
+};
+const hhmm=iso=>iso?new Intl.DateTimeFormat("en-GB",{timeZone:TZ,hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(iso)):"";
+let editing=null;
+function editRec(c){
+  c=decodeURIComponent(c);const d=$("fdate").value,r=records[c+"_"+d];editing={c,d};
+  $("edTitle").textContent="تعديل بصمة "+employees[c].name+" – "+d;
+  $("edIn").value=hhmm(r&&r.checkIn);$("edOut").value=hhmm(r&&r.checkOut);
+  $("edMsg").textContent="اترك الخروج فارغاً إذا لم يخرج الموظف بعد.";
+  $("editCard").classList.remove("hide");$("editCard").scrollIntoView({behavior:"smooth"});
+}
+$("edCancel").onclick=()=>$("editCard").classList.add("hide");
+$("edSave").onclick=async()=>{
+  const {c,d}=editing,i=$("edIn").value,o=$("edOut").value;
+  if(!i){$("edMsg").textContent="أدخل وقت الدخول";return}
+  const ci=new Date(d+"T"+i+":00+03:00").toISOString(),co=o?new Date(d+"T"+o+":00+03:00").toISOString():null;
+  if(co&&co<=ci){$("edMsg").textContent="وقت الخروج يجب أن يكون بعد الدخول";return}
+  const old=records[c+"_"+d];
+  try{
+    await db.doc("attendance/"+c+"_"+d).set({code:c,name:employees[c].name,date:d,checkIn:ci,checkOut:co,inZone:(old&&old.inZone)||"تعديل يدوي",outZone:(old&&old.outZone)||null,edited:true,editedAt:new Date().toISOString()});
+    $("editCard").classList.add("hide");
+  }catch(e){$("edMsg").textContent="فشل الحفظ"}
+};
+
+$("rpDate").value=dayKey();
+function addDays(d,n){const t=new Date(d+"T12:00:00Z");t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
+function mins(r){return r&&r.checkIn&&r.checkOut?Math.round((new Date(r.checkOut)-new Date(r.checkIn))/60000):0}
+function hm(m){return Math.floor(m/60)+" س "+(m%60)+" د"}
+$("rpBtn").onclick=async()=>{
+  let dl=null;try{dl=await claude.use("downloads")}catch(e){}
+  if(!dl||!window.docx){$("rpMsg").textContent="التنزيل غير متاح حالياً";return}
+  const type=$("rpType").value,sel=$("rpDate").value;
+  if(!sel){$("rpMsg").textContent="اختر التاريخ";return}
+  let from=sel,to=sel;
+  if(type==="week"){const wd=new Date(sel+"T12:00:00Z").getUTCDay();from=addDays(sel,-((wd+1)%7));to=addDays(from,6)}
+  $("rpMsg").textContent="جارٍ إعداد التقرير...";
+  try{
+    const s=await db.collection("attendance").where("date",">=",from).where("date","<=",to).get();
+    const rec={};s.docs.forEach(x=>{const v=x.data();rec[v.code+"_"+v.date]=v});
+    const days=[];for(let d=from;d<=to;d=addDays(d,1))days.push(d);
+    const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,AlignmentType}=docx;
+    const para=(t,o={})=>new Paragraph({bidirectional:true,alignment:o.c?AlignmentType.CENTER:undefined,spacing:{after:120},children:[new TextRun({text:String(t),rightToLeft:true,bold:!!o.b,size:o.s||22,font:"Arial"})]});
+    const cell=(t,b)=>new TableCell({children:[para(t,{b,s:19})]});
+    const emps=Object.entries(employees);
+    const dn=d=>new Date(d+"T12:00:00Z").toLocaleDateString("ar-IQ",{timeZone:"UTC",weekday:"long"})+" "+d.slice(5);
+    let head,rows,summary;
+    if(type==="day"){
+      head=["الموظف","الدخول","الخروج","المدة","الحالة"];
+      let present=0;
+      rows=emps.map(([c,e])=>{const r=rec[c+"_"+sel];if(r)present++;return [e.name,r?tm(r.checkIn):"—",r&&r.checkOut?tm(r.checkOut):"—",mins(r)?hm(mins(r)):"—",r?(r.edited?"معدّل":"حاضر"):"غائب"]});
+      summary="الحاضرون: "+present+" من "+emps.length;
+    }else{
+      head=["الموظف",...days.map(dn),"أيام الحضور","إجمالي الساعات"];
+      rows=emps.map(([c,e])=>{let tot=0,cnt=0;const cs=days.map(d=>{const r=rec[c+"_"+d];if(!r)return "غائب";cnt++;tot+=mins(r);return tm(r.checkIn)+" – "+(r.checkOut?tm(r.checkOut):"؟")});return [e.name,...cs,cnt,hm(tot)]});
+      summary="عدد الموظفين: "+emps.length;
+    }
+    const table=new Table({visuallyRightToLeft:true,width:{size:100,type:WidthType.PERCENTAGE},rows:[new TableRow({tableHeader:true,children:head.map(h=>cell(h,true))}),...rows.map(r=>new TableRow({children:r.map(x=>cell(x))}))]});
+    const doc=new Document({sections:[{properties:{page:{size:{orientation:type==="week"?"landscape":"portrait"}}},children:[
+      para("الحرية هايبر ماركت الإنشائية – بغداد",{c:1,b:1,s:30}),
+      para(type==="day"?"تقرير الحضور اليومي – "+sel:"تقرير الحضور الأسبوعي: من "+from+" إلى "+to,{c:1,b:1,s:26}),
+      para(summary),table,
+      para("تاريخ إصدار التقرير: "+new Date().toLocaleString("ar-IQ",{timeZone:TZ}),{s:18})
+    ]}]});
+    const blob=await Packer.toBlob(doc);
+    await dl.save({filename:(type==="day"?"تقرير_يومي_"+sel:"تقرير_أسبوعي_"+from+"_"+to)+".docx",data:blob});
+    $("rpMsg").textContent="تم إعداد التقرير ✔";
+  }catch(e){$("rpMsg").textContent=e&&e.code==="declined"?"تم إلغاء التنزيل":"تعذر إنشاء التقرير"}
+};
+let payCfg={salary:500000,hours:7,off:[]},payData=null;
+const DN=["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+$("pOff").innerHTML=DN.map((n,i)=>"<label><input type='checkbox' id='off"+i+"'> "+n+"</label>").join("");
+$("pMonth").value=dayKey().slice(0,7);
+const fmt=n=>Math.round(n).toLocaleString("en-US")+" د.ع";
+function watchPay(){db.doc("settings/payroll").onSnapshot(s=>{
+  if(s.exists)payCfg={...payCfg,...s.data()};payCfg.off=payCfg.off||[];
+  $("pSal").value=payCfg.salary;$("pHrs").value=payCfg.hours;DN.forEach((_,i)=>$("off"+i).checked=payCfg.off.includes(i));renderEmps();
+},()=>{})}
+$("pSave").onclick=async()=>{
+  try{await db.doc("settings/payroll").set({salary:+$("pSal").value||500000,hours:+$("pHrs").value||7,off:DN.map((_,i)=>i).filter(i=>$("off"+i).checked)});$("pMsg").textContent="تم حفظ الإعدادات ✔"}
+  catch(e){$("pMsg").textContent="فشل الحفظ"}
+};
+async function setSal(c,v){c=decodeURIComponent(c);try{await db.doc("employees/"+c).update({salary:+v||null})}catch(e){}}
+async function calcPay(){
+  const m=$("pMonth").value;if(!m)return null;
+  const y=+m.slice(0,4),mo=+m.slice(5,7),dim=new Date(Date.UTC(y,mo,0)).getUTCDate(),from=m+"-01",to=m+"-"+String(dim).padStart(2,"0");
+  const s=await db.collection("attendance").where("date",">=",from).where("date","<=",to).get();
+  const rec={};s.docs.forEach(x=>{const v=x.data();(rec[v.code]=rec[v.code]||[]).push(v)});
+  let work=0;for(let d=1;d<=dim;d++)if(!payCfg.off.includes(new Date(Date.UTC(y,mo-1,d,12)).getUTCDay()))work++;
+  const cap=payCfg.hours*60,need=work*payCfg.hours;
+  const rows=Object.entries(employees).map(([c,e])=>{
+    const sal=e.salary||payCfg.salary,rate=sal/need;let days=0,tot=0;
+    (rec[c]||[]).forEach(r=>{days++;tot+=Math.min(mins(r),cap)});
+    const net=Math.min(sal,rate*tot/60);
+    return {name:e.name,days,hrs:tot/60,need,sal,ded:sal-net,net};
+  });
+  return {rows,m,work,need};
+}
+function renderPay(d){
+  $("pRows").innerHTML=d.rows.map(r=>"<tr><td>"+esc(r.name)+"</td><td>"+r.days+"</td><td>"+hm(Math.round(r.hrs*60))+"</td><td>"+r.need+" س"+"</td><td>"+fmt(r.sal)+"</td><td style='color:var(--bad)'>"+fmt(r.ded)+"</td><td><b>"+fmt(r.net)+"</b></td></tr>").join("")||"<tr><td>لا يوجد موظفون</td></tr>";
+  $("pMsg").textContent="أيام الدوام في الشهر: "+d.work+" يوم × "+payCfg.hours+" ساعات = "+d.need+" ساعة. الصافي = (الراتب ÷ ساعات الشهر) × ساعات العمل الفعلية.";
+}
+$("pCalc").onclick=async()=>{$("pMsg").textContent="جارٍ الحساب...";try{payData=await calcPay();if(payData)renderPay(payData)}catch(e){$("pMsg").textContent="تعذر حساب الرواتب"}};
+$("pDoc").onclick=async()=>{
+  let dl=null;try{dl=await claude.use("downloads")}catch(e){}
+  if(!dl||!window.docx){$("pMsg").textContent="التنزيل غير متاح حالياً";return}
+  try{
+    payData=await calcPay();if(!payData)return;renderPay(payData);
+    const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,AlignmentType}=docx;
+    const para=(t,o={})=>new Paragraph({bidirectional:true,alignment:o.c?AlignmentType.CENTER:undefined,spacing:{after:120},children:[new TextRun({text:String(t),rightToLeft:true,bold:!!o.b,size:o.s||22,font:"Arial"})]});
+    const cell=(t,b)=>new TableCell({children:[para(t,{b,s:19})]});
+    const head=["الموظف","أيام الحضور","ساعات العمل","المطلوب","الراتب الأساسي","الاستقطاع","الصافي"];
+    const rows=payData.rows.map(r=>[r.name,r.days,hm(Math.round(r.hrs*60)),r.need+" س",fmt(r.sal),fmt(r.ded),fmt(r.net)]);
+    const total=payData.rows.reduce((a,r)=>a+r.net,0);
+    const table=new Table({visuallyRightToLeft:true,width:{size:100,type:WidthType.PERCENTAGE},rows:[new TableRow({tableHeader:true,children:head.map(h=>cell(h,true))}),...rows.map(r=>new TableRow({children:r.map(x=>cell(x))}))]});
+    const doc=new Document({sections:[{properties:{page:{size:{orientation:"landscape"}}},children:[
+      para("الحرية هايبر ماركت الإنشائية – بغداد",{c:1,b:1,s:30}),
+      para("كشف رواتب شهر "+payData.m,{c:1,b:1,s:26}),
+      para("ساعات الدوام اليومية: "+payCfg.hours+" – أيام الدوام في الشهر: "+payData.work),
+      table,para("إجمالي الرواتب الصافية: "+fmt(total),{b:1}),
+      para("تاريخ الإصدار: "+new Date().toLocaleString("ar-IQ",{timeZone:TZ}),{s:18})
+    ]}]});
+    await dl.save({filename:"كشف_رواتب_"+payData.m+".docx",data:await Packer.toBlob(doc)});
+  }catch(e){$("pMsg").textContent=e&&e.code==="declined"?"تم إلغاء التنزيل":"تعذر إنشاء الملف"}
+};
+</script>
+<script src="login.js"></script>
+</body>
+</html>

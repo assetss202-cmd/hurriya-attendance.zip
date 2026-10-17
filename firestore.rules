@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function isAdmin(){ return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function isEmp(){ return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function myCode(){ return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.code; }
+    function noSetupYet(){ return !exists(/databases/$(database)/documents/meta/setup); }
+
+    match /meta/{d} {                       // اسم المسؤول (للتحقق) + قفل أول تشغيل
+      allow read: if true;
+      allow create: if signedIn() && noSetupYet();
+      allow update: if isAdmin();
+    }
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid && noSetupYet();
+    }
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    match /employees/{code} {
+      allow read: if isAdmin() || (isEmp() && myCode() == code);
+      allow write: if isAdmin();
+    }
+    match /attendance/{id} {
+      allow read: if isAdmin() || (isEmp() && resource.data.code == myCode());
+      allow create: if isAdmin() || (isEmp() && request.resource.data.code == myCode()
+                        && id == myCode() + '_' + request.resource.data.date);
+      allow update: if isAdmin() || (isEmp() && resource.data.code == myCode()
+                        && request.resource.data.code == myCode()
+                        && request.resource.data.checkIn == resource.data.checkIn
+                        && !('edited' in resource.data));
+      allow delete: if isAdmin();
+    }
+    match /requests/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /checks/{id} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || (isEmp() && request.resource.data.code == myCode()
+                        && id == request.resource.data.reqId + '_' + myCode());
+      allow update, delete: if isAdmin();
+    }
+    match /settings/{d} {
+      allow read: if d == 'zone' ? signedIn() : isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}
